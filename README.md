@@ -6,3 +6,6 @@
 
 2. Open the browser and navigate to 
 > 0.0.0.0:8000/
+
+N.B: 
+> The pt file is not uploaded due to heavy file size. Create a directory model and then put the checkpoint.pt file there. 
