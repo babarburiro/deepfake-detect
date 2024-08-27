@@ -10,7 +10,7 @@ import torchvision.transforms as transforms
 import cv2
 from torch import nn
 from torchvision import models
-
+from . import custom_nn
 
 app = FastAPI()
 
@@ -111,7 +111,8 @@ async def save_video(file: UploadFile = File(...)):
 
 @app.get("/analyze-video")
 async def analyze_video(file_path: str):
-    prediction = predict_video(file_path)
+    # prediction = predict_video(file_path)
+    prediction = custom_nn.perform_predict(file_path)
     return {"result": prediction}
 
 
