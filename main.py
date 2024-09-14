@@ -10,13 +10,13 @@ import torchvision.transforms as transforms
 import cv2
 from torch import nn
 from torchvision import models
-from . import custom_nn
+from nn import perform_predict
 
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
     
-VIDEO_DIR = "static/videos"
+VIDEO_DIR = "./static/videos"
 if not os.path.exists(VIDEO_DIR):
     os.makedirs(VIDEO_DIR)
 os.makedirs("chunks", exist_ok=True)
@@ -53,7 +53,7 @@ class Model(nn.Module):
         return fmap, self.dp(self.linear1(x_lstm[:, -1, :]))
 
 def load_model(path_to_model, num_classes=2):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     model = Model(num_classes).to(device)
     checkpoint = torch.load(path_to_model, map_location=device)
     model.load_state_dict(checkpoint, strict=False)
@@ -101,7 +101,7 @@ def predict_video(video_path):
         return {"error": str(e)}
 
 
-model = load_model(model_path)
+
 @app.post("/save-video/")
 async def save_video(file: UploadFile = File(...)):
     file_location = os.path.join(VIDEO_DIR, file.filename)
@@ -112,8 +112,15 @@ async def save_video(file: UploadFile = File(...)):
 @app.get("/analyze-video")
 async def analyze_video(file_path: str):
     # prediction = predict_video(file_path)
-    prediction = custom_nn.perform_predict(file_path)
-    return {"result": prediction}
+    prediction = perform_predict([file_path])
+    result = prediction[0]
+    img = prediction[2]
+    print('RESULT:',result)
+    if result:
+        result = 'Real'
+    else:
+        result = 'Fake'
+    return {"result": result, 'img': f"data:image/png;base64,{img}"}
 
 
    
@@ -122,3 +129,7 @@ async def analyze_video(file_path: str):
 async def read_index():
     with open("static/index.html") as f:
         return HTMLResponse(content=f.read(), media_type="text/html")
+    
+
+if __name__=='__main__':
+    prediction = perform_predict(['./static/videos/recording-1725721663793.webm'])

@@ -1,23 +1,15 @@
 
+import base64
 import torch
-import torchvision
 from torchvision import transforms
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
-import os
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import face_recognition
-
-#import libraries
-import torch
-from torch.autograd import Variable
-import time
 import os
-import sys
-import os
-from torch import nn
+from torch import nn, tensor
 from torchvision import models
 
 im_size = 112
@@ -26,18 +18,6 @@ std=[0.229, 0.224, 0.225]
 sm = nn.Softmax()
 inv_normalize =  transforms.Normalize(mean=-1*np.divide(mean,std),std=np.divide([1,1,1],std))
 
-#!pip3 install face_recognition
-import torch
-import torchvision
-from torchvision import transforms
-from torch.utils.data import DataLoader
-from torch.utils.data.dataset import Dataset
-import os
-import numpy as np
-import cv2
-import matplotlib.pyplot as plt
-import face_recognition
-
 class validation_dataset(Dataset):
     def __init__(self,video_names,sequence_length = 60,transform = None):
         self.video_names = video_names
@@ -45,6 +25,7 @@ class validation_dataset(Dataset):
         self.count = sequence_length
     def __len__(self):
         return len(self.video_names)
+    
     def __getitem__(self,idx):
         video_path = self.video_names[idx]
         frames = []
@@ -61,10 +42,11 @@ class validation_dataset(Dataset):
             frames.append(self.transform(frame))
             if(len(frames) == self.count):
               break
-        #print("no of frames",len(frames))
+        print("no of frames",len(frames))
         frames = torch.stack(frames)
         frames = frames[:self.count]
         return frames.unsqueeze(0)
+    
     def frame_extract(self,path):
       vidObj = cv2.VideoCapture(path)
       success = 1
@@ -72,14 +54,15 @@ class validation_dataset(Dataset):
           success, image = vidObj.read()
           if success:
               yield image
+              
 def im_plot(tensor):
     image = tensor.cpu().numpy().transpose(1,2,0)
     b,g,r = cv2.split(image)
     image = cv2.merge((r,g,b))
     image = image*[0.22803, 0.22145, 0.216989] +  [0.43216, 0.394666, 0.37645]
     image = image*255.0
-    plt.imshow(image.astype(int))
-    plt.show()
+    # plt.imshow(image.astype(int))
+    # plt.show()
 
 def im_convert(tensor):
     """ Display a tensor as an image. """
@@ -88,12 +71,19 @@ def im_convert(tensor):
     image = inv_normalize(image)
     image = image.numpy()
     image = image.transpose(1,2,0)
-    image = image.clip(0, 1)
-    cv2.imwrite('./2.png',image*255)
-    return image
+    image_for_hm = image.clip(0, 1)
+    image = (image.clip(0, 1) * 255).astype(np.uint8)  
+    success, buffer = cv2.imencode('.png', image)
+    cv2.imwrite('./2.png',image_for_hm*255)
+    if not success:
+        raise ValueError("Could not encode image")
+
+    # Convert the buffer to base64
+    base64_image = base64.b64encode(buffer).decode('utf-8')
+    return base64_image, image_for_hm
 
 def predict(model,img,path = './'):
-  fmap,logits = model(img.to('cuda'))
+  fmap,logits = model(img.to('cpu'))
   params = list(model.parameters())
   weight_softmax = model.linear1.weight.detach().cpu().numpy()
   logits = sm(logits)
@@ -109,15 +99,15 @@ def predict(model,img,path = './'):
   predict_img = np.uint8(255*predict_img)
   out = cv2.resize(predict_img, (im_size,im_size))
   heatmap = cv2.applyColorMap(out, cv2.COLORMAP_JET)
-  img = im_convert(img[:,-1,:,:,:])
-  result = heatmap * 0.5 + img*0.8*255
-  cv2.imwrite('/content/1.png',result)
-  result1 = heatmap * 0.5/255 + img*0.8
+  img, img_for_hm = im_convert(img[:,-1,:,:,:])
+  result = heatmap * 0.5 + img_for_hm*0.8*255
+  cv2.imwrite('./1.png',result)
+  result1 = heatmap * 0.5/255 + img_for_hm*0.8
   r,g,b = cv2.split(result1)
   result1 = cv2.merge((r,g,b))
-  plt.imshow(result1)
-  plt.show()
-  return [int(prediction.item()),confidence]
+#   plt.imshow(result1)
+#   plt.show()
+  return [int(prediction.item()),confidence, img]
 #img = train_data[100][0].unsqueeze(0)
 #predict(model,img)
 #Model with feature visualization
@@ -141,22 +131,19 @@ class Model(nn.Module):
         x = x.view(batch_size,seq_length,2048)
         x_lstm,_ = self.lstm(x,None)
         return fmap,self.dp(self.linear1(x_lstm[:,-1,:]))
-model = Model(2).cuda()
-path_to_model = '/model/checkpoint.pt'
-model.load_state_dict(torch.load(path_to_model))
+
+model = Model(2).cpu()
+path_to_model = './model/checkpoint.pt'
+model.load_state_dict(torch.load(path_to_model, map_location=torch.device('cpu')))
 model.eval()
 
 def perform_predict(filepath):
-   train_transforms = transforms.Compose([
-                                        transforms.ToPILImage(),
-                                        transforms.Resize((im_size,im_size)),
-                                        transforms.ToTensor(),
-                                        transforms.Normalize(mean,std)])
-   video_dataset = validation_dataset(filepath,sequence_length = 10,transform = train_transforms)
-   for i in range(0,len(filepath)):
-
-    prediction = predict(model,video_dataset[i],'./videos')
-    if prediction[0] == 1:
-            return "REAL"
-    else:
-        return "FAKE"
+    train_transforms = transforms.Compose([
+                                            transforms.ToPILImage(),
+                                            transforms.Resize((im_size,im_size)),
+                                            transforms.ToTensor(),
+                                            transforms.Normalize(mean,std)])
+    video_dataset = validation_dataset(filepath,sequence_length = 10,transform = train_transforms)
+    for i in range(0,len(filepath)):
+        prediction = predict(model,video_dataset[i],'./videos')
+        return prediction

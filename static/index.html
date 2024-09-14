@@ -21,6 +21,49 @@
         .navbar-brand img {
             max-height: 40px;
         }
+        #upload {
+            display: none;
+        }
+        .custom-upload {
+            border: 2px dashed #007bff;
+            padding: 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            display: inline-block;
+            width: 100%;
+            text-align: center;
+        }
+        .custom-upload:hover {
+            background-color: #f8f9fa;
+        }
+        .divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 30px 0;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #ddd;
+        }
+        .divider::before {
+            margin-right: .5em;
+        }
+        .divider::after {
+            margin-left: .5em;
+        }
+        #result-container {
+            display: none;
+            margin-top: 20px;
+        }
+        #result-image {
+            max-width: 100%;
+            height: auto;
+            border: 2px solid #007bff;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
@@ -46,10 +89,29 @@
     <div class="container text-center mt-5">
         <h1>Screen Recorder for DeepFake Detection</h1>
         <p class="lead">Easily record your screen and analyze the video for DeepFake content.</p>
-        <div class="btn-group my-4" role="group">
+        <div class="btn-group my-4" role="group" aria-label="Recording controls">     
             <button id="start" class="btn btn-primary mx-2">Start Recording</button>
             <button id="stop" class="btn btn-danger mx-2">Stop Recording</button>
         </div>
+
+        <div class="divider">or</div>
+
+        <div class="row">
+            <div class="col-md-12 text-center">
+                <label for="upload" class="custom-upload text-primary">
+                    <i class="fas fa-upload"></i> Click to Upload Video
+                </label>
+                <input type="file" id="upload" accept="video/*">
+            </div>
+        </div>
+
+        <div class="row mt-5">
+            <div class="col-md-12 text-center" id="result-container">
+                <img id="result-image" src="" alt="Deepfake Analysis Result">
+            </div>
+        </div>
+        
+
         <div id="status" class="alert alert-info mt-3" role="alert">Status: Ready</div>
     </div>
 
